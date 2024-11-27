@@ -1,10 +1,12 @@
 # myapp/views.py
-from rest_framework import generics
+from rest_framework import generics,viewsets
 from .models import NFTs
 from .serializers import NFTsSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import action
+
 # List all NFTs or create a new one
 class NFTsListCreateView(generics.ListCreateAPIView):
     print("hello")
@@ -28,21 +30,23 @@ class NFTsDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
-class ApproveNftView(APIView):
-    def patch(self, request, pk):
+class ApproveNftView(viewsets.ModelViewSet):
+    print("inside the approved function")
+    @action(detail=False, methods=['patch'], url_path=r'update-nft/(?P<pk>[^/.]+)')
+    def update_nft_by_id(self, request, pk=None):
+        """
+        Updates an NFT by its primary key (pk).
+        """
         try:
-            # Get the NFT object by primary key (pk)
-            nft = NFTs.objects.get(pk=pk)
-
-            # Update the `approved` field
-            approved = request.data.get('approved', None)
-            if approved is not None:
-                nft.approved = approved
-                nft.save()
-                return Response({"message": "NFT approved successfully"}, status=status.HTTP_200_OK)
-            
-            return Response({"error": "Invalid data"}, status=status.HTTP_400_BAD_REQUEST)
+            # Find the NFT by primary key
+            print("fteching the nft...",pk)
+            nft = NFTs.objects.get(nft_id=str(pk))
         except NFTs.DoesNotExist:
-            return Response({"error": "NFT not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'NFT not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Use the NFTUpdateSerializer to validate and update only specific fields
+        serializer = NFTsSerializer(nft, data=request.data, partial=True)  # partial=True allows partial updates
+        if serializer.is_valid():
+            serializer.save()  # Updates only the fields provided in the request data
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
